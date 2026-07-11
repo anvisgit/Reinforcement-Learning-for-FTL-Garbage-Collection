@@ -39,10 +39,9 @@ python scripts/train_loop.py --episodes 3 --n-writes 6000
 
 ## Fallback results
 
-These results were collected from the current Windows-compatible fallback build and are intended as placeholders until you replace them with your own measured values.
+These results were collected from the current Windows-compatible fallback build and are intended as placeholders.
 
 - Greedy GC: WAF approximately 1.18
 - Random GC: WAF approximately 1.54
 - RL/PPO fallback: WAF approximately 23.67
 
-You can replace these values later with the actual results from your environment.
