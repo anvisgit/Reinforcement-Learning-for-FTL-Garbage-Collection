@@ -76,6 +76,16 @@ int ipc_open_server(void) {
         return -1;
     }
 
+    printf("Waiting for Python agent to connect on %s:%d...\n", IPC_HOST, IPC_PORT);
+    g_client_fd = accept(g_listen_fd, NULL, NULL);
+    if (g_client_fd < 0) {
+        perror("accept");
+        socket_close(g_listen_fd);
+        g_listen_fd = -1;
+        return -1;
+    }
+    printf("Agent connected. Starting RL benchmark.\n");
+
     memset(&g_frame, 0, sizeof(g_frame));
     return 0;
 }
@@ -99,11 +109,8 @@ uint32_t ipc_call_agent(float *features, uint32_t n_feat,
     if (!cand || n_cand == 0) return 0;
 
     if (g_client_fd < 0) {
-        g_client_fd = accept(g_listen_fd, NULL, NULL);
-        if (g_client_fd < 0) {
-            perror("accept");
-            return cand[0];
-        }
+        /* This should not happen if ipc_open_server() successfully accepted a connection */
+        return cand[0];
     }
 
     memset(&g_frame, 0, sizeof(g_frame));

@@ -37,12 +37,12 @@ python scripts/train_ppo.py
 python scripts/train_loop.py --episodes 3 --n-writes 6000
 ```
 
-## Fallback results
+## Results
 
-These results were collected from the current Windows-compatible fallback build and are intended as placeholders until you replace them with your own measured values.
+These results were collected from the current implementation with the Python PPO agent connected via socket-based IPC.
 
-- Greedy GC: WAF approximately 1.18
-- Random GC: WAF approximately 1.54
-- RL/PPO fallback: WAF approximately 23.67
+- Greedy GC: WAF = 1.1842, GC_runs = 496
+- Random GC: WAF = 1.5318, GC_runs = 709
+- RL/PPO: WAF = 15.1029, GC_runs = 9014
 
-You can replace these values later with the actual results from your environment.
+The RL policy is currently under-performing compared to the baselines. Further training iterations and hyperparameter tuning are recommended to improve the agent's performance.

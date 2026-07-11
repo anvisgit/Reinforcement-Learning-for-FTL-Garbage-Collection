@@ -2,7 +2,7 @@ CC      = gcc
 CFLAGS  = -Wall -Wextra -O2 -std=c11 -Iinclude -D_POSIX_C_SOURCE=200809L
 
 ifeq ($(OS),Windows_NT)
-LDFLAGS = -lpthread -lm
+LDFLAGS = -lws2_32 -lpthread -lm
 BIN = ftl_bench.exe
 else
 LDFLAGS = -lrt -lpthread -lm
