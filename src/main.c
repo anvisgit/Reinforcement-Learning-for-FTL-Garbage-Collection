@@ -7,6 +7,14 @@
 #include <time.h>
 #include <math.h>
 #include <stdint.h>
+#include <errno.h>
+
+#if defined(_WIN32)
+#include <direct.h>
+#define mkdir(path) _mkdir(path)
+#else
+#include <sys/stat.h>
+#endif
 
 /* ─── workload generator ────────────────────────── */
 typedef enum { WL_SEQ, WL_RANDOM, WL_HOTCOLD } WorkloadType;
@@ -206,6 +214,9 @@ int main(int argc, char **argv) {
 
     /* save results */
     if (n_res > 0) {
+        if (mkdir("results") != 0 && errno != EEXIST) {
+            perror("mkdir");
+        }
         save_csv    (results, n_res, "results/waf_curves.csv");
         save_summary(results, n_res, "results/summary.csv");
     }

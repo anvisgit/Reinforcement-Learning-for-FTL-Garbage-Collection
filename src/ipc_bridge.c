@@ -1,69 +1,134 @@
 #include "ipc_bridge.h"
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <semaphore.h>
-#include <unistd.h>
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
+#include <stdlib.h>
 
-static int       g_shm_fd  = -1;
-static IPCFrame *g_frame   = NULL;
-static sem_t    *g_sem_c2py = SEM_FAILED;
-static sem_t    *g_sem_py2c = SEM_FAILED;
+#if defined(_WIN32)
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#pragma comment(lib, "ws2_32.lib")
+#else
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#endif
+
+#define IPC_HOST "127.0.0.1"
+#define IPC_PORT 5555
+
+static int g_listen_fd = -1;
+static int g_client_fd = -1;
+static IPCFrame g_frame;
+
+static int socket_close(int fd) {
+#if defined(_WIN32)
+    return closesocket(fd);
+#else
+    return close(fd);
+#endif
+}
+
+static int socket_init(void) {
+#if defined(_WIN32)
+    static int ws_started = 0;
+    if (!ws_started) {
+        WSADATA wsa;
+        int rc = WSAStartup(MAKEWORD(2, 2), &wsa);
+        if (rc != 0) {
+            fprintf(stderr, "WSAStartup failed: %d\n", rc);
+            return -1;
+        }
+        ws_started = 1;
+    }
+#endif
+    return 0;
+}
 
 int ipc_open_server(void) {
-    /* clean up stale objects */
-    shm_unlink(IPC_SHM_NAME);
-    sem_unlink(IPC_SEM_C2PY);
-    sem_unlink(IPC_SEM_PY2C);
+    if (socket_init() < 0) return -1;
+    if (g_listen_fd >= 0) return 0;
 
-    g_shm_fd = shm_open(IPC_SHM_NAME, O_CREAT | O_RDWR, 0666);
-    if (g_shm_fd < 0) { perror("shm_open"); return -1; }
-    if (ftruncate(g_shm_fd, IPC_SHM_SIZE) < 0) { perror("ftruncate"); return -1; }
+    g_listen_fd = (int)socket(AF_INET, SOCK_STREAM, 0);
+    if (g_listen_fd < 0) { perror("socket"); return -1; }
 
-    g_frame = mmap(NULL, IPC_SHM_SIZE, PROT_READ | PROT_WRITE,
-                   MAP_SHARED, g_shm_fd, 0);
-    if (g_frame == MAP_FAILED) { perror("mmap"); return -1; }
-    memset(g_frame, 0, IPC_SHM_SIZE);
+    int opt = 1;
+    setsockopt(g_listen_fd, SOL_SOCKET, SO_REUSEADDR, (const char *)&opt, sizeof(opt));
 
-    g_sem_c2py = sem_open(IPC_SEM_C2PY, O_CREAT, 0666, 0);
-    g_sem_py2c = sem_open(IPC_SEM_PY2C, O_CREAT, 0666, 0);
-    if (g_sem_c2py == SEM_FAILED || g_sem_py2c == SEM_FAILED) {
-        perror("sem_open"); return -1;
+    struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    addr.sin_port = htons(IPC_PORT);
+
+    if (bind(g_listen_fd, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        perror("bind");
+        socket_close(g_listen_fd);
+        g_listen_fd = -1;
+        return -1;
     }
+
+    if (listen(g_listen_fd, 1) < 0) {
+        perror("listen");
+        socket_close(g_listen_fd);
+        g_listen_fd = -1;
+        return -1;
+    }
+
+    memset(&g_frame, 0, sizeof(g_frame));
     return 0;
 }
 
 void ipc_close_server(void) {
-    if (g_frame) {
-        g_frame->command = IPC_CMD_SHUTDOWN;
-        sem_post(g_sem_c2py);   /* wake Python so it can exit */
-        usleep(100000);
-        munmap(g_frame, IPC_SHM_SIZE);
+    if (g_client_fd >= 0) {
+        socket_close(g_client_fd);
+        g_client_fd = -1;
     }
-    if (g_shm_fd >= 0) { close(g_shm_fd); shm_unlink(IPC_SHM_NAME); }
-    if (g_sem_c2py != SEM_FAILED) { sem_close(g_sem_c2py); sem_unlink(IPC_SEM_C2PY); }
-    if (g_sem_py2c != SEM_FAILED) { sem_close(g_sem_py2c); sem_unlink(IPC_SEM_PY2C); }
+    if (g_listen_fd >= 0) {
+        socket_close(g_listen_fd);
+        g_listen_fd = -1;
+    }
 }
 
-IPCFrame *ipc_frame(void) { return g_frame; }
+IPCFrame *ipc_frame(void) { return &g_frame; }
 
 uint32_t ipc_call_agent(float *features, uint32_t n_feat,
                          uint32_t *cand,    uint32_t n_cand,
                          double reward,     uint32_t done) {
-    if (!g_frame) return cand[0];
+    if (!cand || n_cand == 0) return 0;
 
-    g_frame->n_feat  = n_feat;
-    g_frame->n_cand  = n_cand;
-    g_frame->reward  = reward;
-    g_frame->done    = done;
-    memcpy(g_frame->features, features, n_feat * sizeof(float));
-    memcpy(g_frame->cand,     cand,     n_cand * sizeof(uint32_t));
-    g_frame->command = IPC_CMD_PICK;
+    if (g_client_fd < 0) {
+        g_client_fd = accept(g_listen_fd, NULL, NULL);
+        if (g_client_fd < 0) {
+            perror("accept");
+            return cand[0];
+        }
+    }
 
-    sem_post(g_sem_c2py);    /* signal Python agent */
-    sem_wait(g_sem_py2c);    /* wait for response   */
+    memset(&g_frame, 0, sizeof(g_frame));
+    g_frame.command = IPC_CMD_PICK;
+    g_frame.n_feat  = n_feat;
+    g_frame.n_cand  = n_cand;
+    g_frame.reward  = reward;
+    g_frame.done    = done;
+    if (features && n_feat > 0) {
+        memcpy(g_frame.features, features, n_feat * sizeof(float));
+    }
+    if (cand && n_cand > 0) {
+        memcpy(g_frame.cand, cand, n_cand * sizeof(uint32_t));
+    }
 
-    return g_frame->victim;
+    if (send(g_client_fd, (const char *)&g_frame, sizeof(g_frame), 0) != (int)sizeof(g_frame)) {
+        perror("send");
+        return cand[0];
+    }
+
+    int received = recv(g_client_fd, (char *)&g_frame, sizeof(g_frame), 0);
+    if (received != (int)sizeof(g_frame)) {
+        perror("recv");
+        return cand[0];
+    }
+
+    return g_frame.victim;
 }

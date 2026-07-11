@@ -1,0 +1,4 @@
+policy,final_waf,total_gc_runs,total_gc_copies
+greedy,1.181245,494,7099
+random,1.539650,714,21137
+ppo,23.669935,14257,887936

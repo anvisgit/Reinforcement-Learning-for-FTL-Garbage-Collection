@@ -1,21 +1,10 @@
-"""
-train_loop.py — orchestrates multi-episode PPO training.
 
-For each episode:
-  1. Spawn `./ftl_bench --rl` (fresh NAND device, blocks on IPC)
-  2. Connect Python agent, run episode, collect rollout, PPO update
-  3. Wait for C process to exit, repeat
-
-Much shorter workload per episode than the final benchmark, so training
-is fast; final evaluation uses the full workload via run_eval.sh.
-"""
 
 import argparse
 import os
 import subprocess
 import sys
 import time
-
 sys.path.insert(0, os.path.dirname(__file__))
 from ipc_client import connect
 from ppo_agent import PPOPolicy, PPOTrainer, RolloutBuffer
@@ -24,7 +13,11 @@ from train_ppo import run_episode
 import torch
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-BIN  = os.path.join(ROOT, "ftl_bench")
+BIN_CANDIDATES = [
+    os.path.join(ROOT, "ftl_bench.exe"),
+    os.path.join(ROOT, "ftl_bench"),
+]
+BIN = next((p for p in BIN_CANDIDATES if os.path.exists(p)), BIN_CANDIDATES[0])
 
 
 def main():
