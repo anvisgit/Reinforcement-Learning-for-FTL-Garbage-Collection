@@ -83,10 +83,12 @@ class IPCFrame:
 def connect(retries=50, delay=0.1):
     """Connect to the FTL benchmark, retrying until the C side opens the socket."""
     last_err = None
-    for _ in range(retries):
+    for attempt in range(1, retries + 1):
         try:
             return IPCFrame()
         except OSError as e:
             last_err = e
-            time.sleep(delay)
-    raise RuntimeError(f"Could not connect to FTL shared memory: {last_err}")
+            if attempt < retries:
+                time.sleep(delay)
+                continue
+    raise RuntimeError(f"Could not connect to FTL benchmark socket on {HOST}:{PORT}: {last_err}")
