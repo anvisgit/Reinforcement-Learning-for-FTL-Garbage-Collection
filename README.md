@@ -46,3 +46,8 @@ These results were collected from the current implementation with the Python PPO
 - RL/PPO: WAF = 15.1029, GC_runs = 9014
 
 The RL policy is currently under-performing compared to the baselines. Further training iterations and hyperparameter tuning are recommended to improve the agent's performance.
+
+<<<<<<< HEAD
+The RL policy is currently under-performing compared to the baselines. Further training iterations and hyperparameter tuning are recommended to improve the agent's performance.
+=======
+>>>>>>> 9c8b72134db5a296314a489711c3d5c819fdcb1d
