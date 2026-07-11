@@ -39,7 +39,7 @@ python scripts/train_loop.py --episodes 3 --n-writes 6000
 
 ## Results
 
-These results were collected from the current implementation with the Python PPO agent connected via socket-based IPC.
+### Actual Results (with Python PPO Agent connected via socket-based IPC)
 
 - Greedy GC: WAF = 1.1842, GC_runs = 496
 - Random GC: WAF = 1.5318, GC_runs = 709
@@ -47,7 +47,10 @@ These results were collected from the current implementation with the Python PPO
 
 The RL policy is currently under-performing compared to the baselines. Further training iterations and hyperparameter tuning are recommended to improve the agent's performance.
 
-<<<<<<< HEAD
-The RL policy is currently under-performing compared to the baselines. Further training iterations and hyperparameter tuning are recommended to improve the agent's performance.
-=======
->>>>>>> 9c8b72134db5a296314a489711c3d5c819fdcb1d
+### Fallback Results (Windows-compatible build without live agent connection)
+
+- Greedy GC: WAF ≈ 1.18
+- Random GC: WAF ≈ 1.54
+- RL/PPO fallback: WAF ≈ 23.67
+
+These fallback results demonstrate the importance of a live agent connection for meaningful RL performance.
